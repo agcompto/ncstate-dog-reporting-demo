@@ -1,0 +1,1708 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+
+<title>NC State Day of Giving — Report Layout Demo</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+<style>
+:root{
+ color-scheme: light dark;
+ --font-anthropic-sans: system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ --font-anthropic-serif: Georgia,"Times New Roman",serif;
+ --color-bg:#fafaf8; --color-panel:#ffffff; --color-fg:#1f1e1c; --color-fg-muted:#6b6a65; --color-border-line:#e3e1db;
+ --cds-border:#d6d3cc; --cds-surface-popover:#ffffff; --cds-text-secondary:#6b6a65; --cds-shadow-popover:0 4px 16px rgba(0,0,0,.12);
+ --cds-chart-grid:#ecebe6; --cds-chart-axis:#a9a69e; --cds-chart-reference:#8a877f;
+ --cds-gap-xs:.375rem; --cds-gap-sm:.5rem; --cds-gap-md:1rem; --cds-gap-xl:2rem;
+ --cds-pad-xs:.25rem; --cds-pad-sm:.5rem; --cds-pad-md:1rem; --cds-pad-lg:1.5rem;
+ --cds-radius:8px; --cds-font-size-caption:.8125rem; --cds-font-size-body:.9375rem; --cds-font-size-heading:1.25rem; --cds-font-size-title:2rem;
+ --cds-font-weight-medium:600; --cds-dur-slow:.3s;
+}
+@media (prefers-color-scheme: dark){:root{
+ --color-bg:#1a1918; --color-panel:#232220; --color-fg:#ecebe6; --color-fg-muted:#a5a39c; --color-border-line:#3a3835;
+ --cds-border:#45433f; --cds-surface-popover:#2b2a27; --cds-text-secondary:#a5a39c; --cds-shadow-popover:0 4px 16px rgba(0,0,0,.5);
+ --cds-chart-grid:#2f2e2b; --cds-chart-axis:#6b6964; --cds-chart-reference:#8a877f;
+}}
+html,body{margin:0;background:var(--color-bg);color:var(--color-fg)}
+.page-wrap{max-width:1400px;margin:0 auto;padding:1.5rem clamp(1rem,3vw,2rem) 3rem}
+</style>
+<script>
+// Public demonstration fixtures. Every record below is fictional.
+// The formulas are independently authored examples, not transformations of an
+// export. They use no source values, private records, identifiers, or random seed.
+// Report schemas, display titles, and the 2019–2026 comparison years are retained
+// solely to demonstrate the layout of the reporting interface.
+function buildDemoData() {
+  const data = { gift: [], geo: [], hourly: [], fund: [], more: [], yoy: [] };
+  const pad = (value) => String(value).padStart(2, '0');
+  const money = (cents) => (cents / 100).toFixed(2);
+  const sum = (items, field) => items.reduce((total, item) => total + item[field], 0);
+  const append = (source, panel, records) => records.forEach((record, index) => {
+    data[source].push({ panel, '#': String(index + 1), ...Object.fromEntries(
+      Object.entries(record).map(([key, value]) => [key, String(value)])
+    ) });
+  });
+  const units = Array.from({ length: 6 }, (_, index) => ({
+    index,
+    name: `Example College ${pad(index + 1)}`,
+    fund: `Example Fund ${pad(index + 1)}`,
+    groupId: `DEMO-GROUP-${pad(index + 1)}`,
+    campaignId: `DEMO-CAMPAIGN-${pad(index + 1)}`,
+    fundId: `DEMO-FUND-${pad(index + 1)}`,
+    url: `https://example.org/demo/funds/${index + 1}`,
+  }));
+
+  // Integer cents keep each synthetic subtotal and total exact.
+  const activity = (year, hour, unitIndex) => {
+    const yearIndex = year - 2019;
+    const onlineGifts = 12 + yearIndex * 2 + ((hour * 5 + unitIndex * 7 + yearIndex * 3) % 19);
+    const onlineCents = onlineGifts * (3500 + ((hour + unitIndex + yearIndex) % 7) * 1250);
+    const offlineGifts = (hour + unitIndex + yearIndex) % 5 === 0 ? 2 + unitIndex % 3 : 0;
+    const offlineCents = offlineGifts * (40000 + (unitIndex + 1) * 7500 + yearIndex * 2500);
+    return { onlineGifts, onlineCents, offlineGifts, offlineCents };
+  };
+  const unitTotals = units.map((unit) => {
+    const hours = Array.from({ length: 24 }, (_, hour) => activity(2026, hour, unit.index));
+    const onlineGifts = sum(hours, 'onlineGifts');
+    const offlineGifts = sum(hours, 'offlineGifts');
+    return {
+      ...unit, hours, onlineGifts, offlineGifts,
+      onlineCents: sum(hours, 'onlineCents'),
+      offlineCents: sum(hours, 'offlineCents'),
+      onlineDonors: Math.floor(onlineGifts * 3 / 4),
+      offlineDonors: offlineGifts,
+    };
+  });
+  const totals = Object.fromEntries(
+    ['onlineGifts', 'offlineGifts', 'onlineCents', 'offlineCents', 'onlineDonors', 'offlineDonors']
+      .map((field) => [field, sum(unitTotals, field)])
+  );
+  const stats = (item) => ({
+    'Online Raised ($)': money(item.onlineCents),
+    'Offline Raised ($)': money(item.offlineCents),
+    'Total Raised ($)': money(item.onlineCents + item.offlineCents),
+    'Online Donor Count': item.onlineDonors,
+    'Offline Donor Count': item.offlineDonors,
+    'Total Donor Count': item.onlineDonors + item.offlineDonors,
+    'Online Gift Count': item.onlineGifts,
+    'Offline Gift Count': item.offlineGifts,
+    'Total Gift Count': item.onlineGifts + item.offlineGifts,
+  });
+  const feeCents = Math.round(totals.onlineCents * 29 / 1000) + totals.onlineGifts * 30;
+  append('gift', 'topline_fin', [{
+    'Total Online Donations (Gross)': money(totals.onlineCents),
+    'Total Online Donations (Intended)': money(totals.onlineCents),
+    'Total Credit Card Fees': money(feeCents),
+    'Total Payout Amounts': money(totals.onlineCents - feeCents),
+  }]);
+  append('gift', 'topline_stats', [{
+    ...stats(totals),
+    'Avg # of Gifts per donor': ((totals.onlineGifts + totals.offlineGifts) /
+      (totals.onlineDonors + totals.offlineDonors)).toFixed(2),
+  }]);
+  append('gift', 'fund_numbers', units.map((unit) => ({
+    'Group ID': unit.groupId, 'Campaign ID': unit.campaignId,
+    Areas: unit.name, Fund: unit.fund, 'External Fund Number': unit.fundId,
+  })));
+  append('gift', 'org_stats', unitTotals.map((unit) => ({ Organization: unit.name, ...stats(unit) })));
+
+  // Fictional geographic categories avoid representing real donor locations.
+  const partition = (total) => {
+    const weights = [40, 20, 15, 10, 8];
+    const counts = weights.map((weight) => Math.floor(total * weight / 100));
+    return [...counts, total - counts.reduce((subtotal, count) => subtotal + count, 0)];
+  };
+  const geography = partition(totals.onlineGifts + totals.offlineGifts);
+  append('geo', 'by_state', geography.map((count, index) => ({
+    State: `Example State ${pad(index + 1)}`, 'Gift Count': count,
+  })));
+  append('geo', 'by_country', geography.map((count, index) => ({
+    Country: `Example Country ${pad(index + 1)}`, 'Gift Count': count,
+  })));
+  append('geo', 'oos_group', unitTotals.map((unit) => ({
+    'Group ID': unit.groupId, 'Group Name': unit.name,
+    'Out-of-State Gifts': Math.floor(unit.onlineGifts / 4),
+  })));
+
+  // Each fraction is a fictional segment share for illustrating a report.
+  const challengePanels = [
+    ['h12am', 0, 1], ['h5am', 5, 1], ['h6am_fs', 6, 0.4],
+    ['h7am', 7, 1], ['h8am', 8, 1], ['h9am', 9, 1],
+    ['h10am_up', 10, 0.7], ['h11am_alum', 11, 0.5], ['h11am_friend', 11, 0.2],
+    ['h1pm_grad', 13, 0.3], ['h2pm_fs', 14, 0.4], ['h3pm_student', 15, 0.25],
+    ['h3pm_up', 15, 0.7], ['h5pm_alum', 17, 0.5], ['h6pm', 18, 1],
+    ['h7pm_parent', 19, 0.3], ['h9pm', 21, 1], ['h10pm', 22, 1], ['h11pm', 23, 1],
+  ];
+  challengePanels.forEach(([panel, hour, share]) => append('hourly', panel,
+    unitTotals.map((unit) => ({
+      'Area Name': unit.name, count: Math.floor(unit.hours[hour].onlineGifts * share),
+    })).sort((a, b) => b.count - a.count)
+  ));
+  append('hourly', 'h2am', unitTotals.map((unit) => ({
+    'Group ID': unit.groupId, 'Group Name': unit.name,
+    'Out-of-State Gifts': Math.floor(unit.hours[2].onlineGifts / 4),
+  })));
+  append('hourly', 'h8pm_young', unitTotals.map((unit) => ({
+    'Group ID': unit.groupId, 'Group Name': unit.name,
+    'Young Alumni Donations': Math.floor(unit.hours[20].onlineGifts / 5),
+  })));
+  append('hourly', 'h12pm_largest', units.map((unit) => ({
+    'Area Name': unit.name, Amount: '$' + money(15000 + unit.index * 2500),
+  })).reverse());
+
+  // These six made-up people are consistent across the fundraiser panels.
+  const leaders = units.map((unit) => {
+    const index = unit.index;
+    const onlineGifts = 18 + index * 7;
+    const offlineGifts = 2 + index;
+    return {
+      unit, index, id: `DEMO-LEADER-${pad(index + 1)}`,
+      firstName: 'Demo Pack Leader', lastName: pad(index + 1),
+      onlineGifts, offlineGifts,
+      onlineDonors: 12 + index * 5, offlineDonors: 1 + Math.floor(index / 2),
+      onlineCents: onlineGifts * (3500 + index * 1000),
+      offlineCents: offlineGifts * (11000 + index * 4000),
+    };
+  });
+  const leaderSummary = (leader) => ({
+    'Fundraiser ID': leader.id, 'first name': leader.firstName, 'last name': leader.lastName,
+    'Total Raised': money(leader.onlineCents + leader.offlineCents),
+    'Total Raised Online': money(leader.onlineCents),
+    'Total Raised Offline': money(leader.offlineCents),
+    'Total Gifts': leader.onlineGifts + leader.offlineGifts,
+    'Total Donor Count': leader.onlineDonors + leader.offlineDonors,
+  });
+  append('hourly', 'h7pm_pl', leaders.map((leader) => {
+    const gifts = Math.floor(leader.onlineGifts / 4);
+    const raisedCents = gifts * (3500 + leader.index * 1000);
+    return {
+      'Fundraiser ID': leader.id, 'first name': leader.firstName, 'last name': leader.lastName,
+      'Total Raised': money(raisedCents), 'Total Raised Online': money(raisedCents),
+      'Total Raised Offline': '0.00', 'Total Gifts': gifts,
+      'Total Donor Count': Math.max(1, gifts - 1),
+    };
+  }));
+  append('fund', 'faf_urls', leaders.map((leader) => ({
+    'Fundraiser Name': `${leader.firstName} ${leader.lastName}`, 'Fundraiser ID': leader.id,
+    'Profile URL': `https://example.org/demo/pack-leaders/${leader.index + 1}`,
+    'Donation URL': `https://example.org/demo/give/leader-${leader.index + 1}`,
+  })));
+  append('fund', 'faf_totals', leaders.map(leaderSummary));
+  append('fund', 'faf_stats', leaders.map((leader) => ({
+    ...leaderSummary(leader), Type: 'FAF', 'Organization Name': leader.unit.name,
+    'Fundraising Campaign': `Demo campaign ${pad(leader.index + 1)}`,
+    'Campaign Name': `Demo campaign ${pad(leader.index + 1)}`,
+    email: `demo-leader-${leader.index + 1}@example.org`,
+    Story: 'Fictional fundraiser example. This story does not describe a real person.',
+    'Photo/Video?': 'None', 'Created At': `2026-01-${pad(leader.index + 2)} 09:00:00`,
+    Goal: money(100000 + leader.index * 100000),
+    'Online Donor Count': leader.onlineDonors, 'Offline Donor Count': leader.offlineDonors,
+    'Total Online Gifts': leader.onlineGifts, 'Total Offline Gifts': leader.offlineGifts,
+    'Recruiter ID': `DEMO-RECRUITER-${pad(leader.index + 1)}`,
+  })));
+
+  const prizeTypes = ['Most gifts', 'Largest gift', 'First gift', 'Last gift', 'Random drawing', 'Recurring gifts'];
+  append('more', 'prizes', prizeTypes.map((type, index) => ({
+    'Prize Title': `Demo prize ${index + 1}: ${type}`,
+    'Prize Text (optional)': '$' + money((index + 1) * 25000),
+    Description: `Fictional ${type.toLowerCase()} prize used only to illustrate report fields.`,
+    'Selection Strategy': type === 'Random drawing' ? 'Random' : 'Manual',
+    'Created Time (Converted)': `2026-01-${pad(index + 2)} 09:00:00`,
+    'Created Time (UTC)': `2026-01-${pad(index + 2)} 14:00:00`,
+    'Amount Awarded': money((index + 1) * 25000), 'Winning Organization': units[index].name,
+    'Individual Prize Description (optional)': 'Fictional award; no money is disbursed.',
+    'Admin First Name': 'Demo', 'Admin Last Name': `Administrator ${pad(index + 1)}`,
+    'Admin Email': `demo-admin-${index + 1}@example.org`,
+    'Addr 1': 'Example address — no real location', 'Addr 2': 'Example suite',
+    City: 'Example City', State: 'Example State', Zip: 'DEMO', Country: 'Example Country',
+  })));
+  append('more', 'vip_hourly', Array.from({ length: 24 }, (_, hour) => ({
+    'hour of day': hour,
+    ...Object.fromEntries(Array.from({ length: 15 }, (_, dayIndex) => [
+      `3/${11 + dayIndex}`,
+      money(dayIndex === 14 ? unitTotals.reduce((total, unit) => total + unit.hours[hour].onlineCents, 0)
+        : (40 + ((dayIndex + 2) * (hour + 3) % 17) * 65) * 100),
+    ])),
+  })));
+  append('more', 'challenges', units.map((unit) => {
+    const goal = 40 + unit.index * 20;
+    const achieved = Math.floor(goal * (65 + unit.index * 10) / 100);
+    const sponsorCents = 150000 + unit.index * 50000;
+    const met = achieved >= goal;
+    return {
+      'Match ID': `DEMO-MATCH-${pad(unit.index + 1)}`,
+      'Match/Challenge Name': `Demo ${goal}-donor challenge ${pad(unit.index + 1)}`,
+      'Associated Org': unit.name, Type: 'Donor challenge',
+      Sponsor: `Demo Sponsor ${pad(unit.index + 1)}`,
+      URL: `https://example.org/demo/challenges/${unit.index + 1}`,
+      'Match Amount/Challenge Goal': `${goal} donors`,
+      'Total Sponsor Gift Amount': money(sponsorCents),
+      'Amount Currently Met': `${achieved} donors`,
+      'Amount Remaining': `${Math.max(0, goal - achieved)} donors`,
+      'Progress %': (achieved / goal * 100).toFixed(1) + '%',
+      'Amount Released': money(met ? sponsorCents : 0),
+      'Met/Depleted at': met ? `2026-01-15 ${pad(12 + unit.index)}:00:00` : 'Not met (fictional example)',
+      description: `Fictional example: ${goal} donors unlock $${money(sponsorCents)} for ${unit.name}.`,
+      'Start Time (Converted)': '2026-01-15 00:00:00',
+      'End Time (Converted)': '2026-01-16 00:00:00',
+      'Created Time (Converted)': `2026-01-${pad(unit.index + 2)} 09:00:00`,
+      'auto match': 't',
+    };
+  }));
+  append('more', 'campaign_urls', units.map((unit) => ({
+    'college/unit': unit.name, 'group id': unit.groupId, 'campaign id': unit.campaignId,
+    designation: unit.fund, 'fund # 1': unit.fundId, visibility: 'Fictional example',
+    'view url': unit.url, 'edit url': 'Not included in this public demo',
+  })));
+  append('more', 'parent_online', unitTotals.map((unit) => ({
+    'Organization Name': unit.name, 'Online Raised (Intended)': money(unit.onlineCents),
+    'Online Raised (Gross)': money(unit.onlineCents),
+    'Online Donors': unit.onlineDonors, 'Online Gifts': unit.onlineGifts,
+  })));
+  append('more', 'survey_ids', units.map((unit) => ({
+    'Survey Choice ID': `DEMO-CHOICE-${pad(unit.index + 1)}`,
+    'Survey Choice': `Example choice ${pad(unit.index + 1)}`,
+    'Survey Question ID': `DEMO-QUESTION-${pad(Math.floor(unit.index / 3) + 1)}`,
+    'Survey Question': `Demo preference question ${Math.floor(unit.index / 3) + 1}`,
+    'Question Type': 'Single Response', Required: 'f',
+  })));
+  append('more', 'fund_desc', units.map((unit) => ({
+    'campaign id': unit.campaignId, 'support area': unit.fund,
+    'group id': unit.groupId, organization: unit.name, 'fund number': unit.fundId,
+    'created date': `2026-01-${pad(unit.index + 2)} 09:00:00`,
+    'view url': unit.url, story: 'Fictional fund description for demonstrating the reporting layout.',
+  })));
+
+  for (let year = 2019; year <= 2026; year += 1) {
+    append('yoy', `hourly_${year}`, Array.from({ length: 24 }, (_, hour) => {
+      const records = units.map((unit) => activity(year, hour, unit.index));
+      const onlineCents = sum(records, 'onlineCents');
+      const offlineCents = sum(records, 'offlineCents');
+      const onlineGifts = sum(records, 'onlineGifts');
+      const offlineGifts = sum(records, 'offlineGifts');
+      return {
+        year, 'Start Hour': hour, 'Total Dollars': money(onlineCents + offlineCents),
+        'Total Gifts': onlineGifts + offlineGifts,
+        'Online Dollars': money(onlineCents), 'Online Gifts': onlineGifts,
+      };
+    }));
+  }
+  return data;
+}
+window.__DATA__ = buildDemoData();
+(function(){
+  const draws=[];
+  window.dash={
+    colors:['#c96442','#2f6fb3','#4b9b6e','#b5892c','#8a5cb8','#d0577d','#5aa3a3','#7d7a72'],
+    data:(id)=>window.__DATA__[id]?{status:'ok',data:window.__DATA__[id]}:{status:'error',data:[]},
+    draw:(name,fn)=>draws.push([name,fn]),
+    setLink:(id)=>{try{history.replaceState(null,'','#'+id)}catch(e){}},
+    _run(){draws.forEach(([n,fn])=>document.querySelectorAll('[data-draw="'+n+'"]').forEach(el=>{try{fn(el)}catch(e){console.error(e)}}))}
+  };
+})();
+</script>
+</head>
+<body>
+<div class="page-wrap">
+<style>
+.dg { font-family: var(--font-anthropic-sans); color: var(--color-fg); display: flex; flex-direction: column; gap: var(--cds-gap-xl); }
+.dg-demo-links { display:flex; flex-wrap:wrap; gap:.5rem 1rem; font-size:.9375rem; }
+.dg-demo-links a { color:var(--color-fg); text-underline-offset:.2em; }
+.dg-demo-notice { padding:1rem 1.25rem; border:3px solid #c00; border-radius:var(--cds-radius); background:var(--color-panel); }
+.dg-demo-notice strong { display:block; font-size:1.05rem; letter-spacing:.025em; }
+.dg-demo-notice p { margin:.5rem 0 0; max-width:85ch; line-height:1.5; }
+.dg-head { display: flex; flex-direction: column; gap: var(--cds-gap-sm); }
+.dg-h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+.dg-sub { margin: 0; max-width: 72ch; color: var(--color-fg-muted); font-size: var(--cds-font-size-body); }
+.dg-filters { display: grid; grid-template-columns: max-content 1fr; gap: var(--cds-gap-xs) var(--cds-gap-md); padding: var(--cds-pad-md); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); font-size: var(--cds-font-size-caption); }
+.dg-flabel { font-weight: var(--cds-font-weight-medium); }
+.dg-fval { color: var(--color-fg-muted); min-width: 0; }
+.dg-fnote { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.dg-nav { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); position: sticky; top: 0; z-index: 2; background: var(--color-bg); padding-block: var(--cds-pad-xs); border-bottom: 1px solid var(--color-border-line); }
+.dg-tab { font-size: var(--cds-font-size-caption); font-weight: var(--cds-font-weight-medium); color: var(--color-fg); text-decoration: none; padding: var(--cds-pad-xs) var(--cds-pad-sm); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-panel); }
+.dg-tab:hover, .dg-tab:focus-visible { border-color: var(--cds-chart-axis); }
+.dg-sec { display: flex; flex-direction: column; gap: var(--cds-gap-md); scroll-margin-top: 3rem; }
+.dg-h2 { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); padding-bottom: var(--cds-pad-xs); border-bottom: 2px solid var(--color-fg); }
+.dg-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--cds-gap-md); }
+.dg-card { grid-column: span 12; min-width: 0; display: flex; flex-direction: column; gap: var(--cds-gap-xs); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-md); }
+@media (min-width: 900px) {
+  .dg-s3 { grid-column: span 3; } .dg-s4 { grid-column: span 4; } .dg-s6 { grid-column: span 6; }
+}
+@media (min-width: 640px) and (max-width: 899px) {
+  .dg-s3, .dg-s4, .dg-s6 { grid-column: span 6; }
+}
+.dg-h3 { margin: 0; font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); }
+.dg-note { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.dg-msg { padding: var(--cds-pad-lg); text-align: center; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); border: 1px dashed var(--color-border-line); border-radius: var(--cds-radius); }
+.dg-tw { overflow: auto; max-height: 22rem; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); }
+.dg-t { border-collapse: collapse; width: 100%; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.dg-t th { position: sticky; top: 0; background: var(--color-panel); text-align: left; font-weight: var(--cds-font-weight-medium); text-transform: uppercase; letter-spacing: .03em; padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.dg-t td { padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; max-width: 28rem; overflow: hidden; text-overflow: ellipsis; }
+.dg-t td:first-child, .dg-t th:first-child { color: var(--color-fg-muted); width: 1%; }
+.dg-t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--color-fg) 3%, transparent); }
+.dg-t td.dg-num { text-align: right; }
+.dg-t td.dg-example { color: var(--color-fg-muted); font-style: italic; }
+.dg-chart { position: relative; min-height: 300px; }
+.dg-chart svg { display: block; }
+.dg-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; z-index: 3; }
+.dg-tip-h { color: var(--cds-text-secondary); margin-bottom: 2px; }
+.dg-tip-r { display: flex; gap: var(--cds-gap-xs); align-items: center; }
+.dg-sw { width: .6rem; height: .6rem; border-radius: 2px; display: inline-block; }
+[data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+
+</style>
+<div class="dg">
+  <header class="dg-head">
+    <nav class="dg-demo-links" aria-label="Demo navigation">
+      <a href="../">Unit reporting demo</a>
+      <a href="../performance/">Performance dashboard</a>
+      <a href="../challenges.html">Challenge reports</a>
+    </nav>
+    <aside class="dg-demo-notice" aria-label="Fictional data notice">
+      <strong>FICTIONAL DATA — PUBLIC DEMONSTRATION</strong>
+      <p>All values, names, contact examples, IDs, timestamps and links in these reports are made up. No donor records or real fundraising results are included. Detailed donor reports show column layouts only.</p>
+    </aside>
+    <h1 class="dg-h1">NC State Day of Giving: Report Layout Demo</h1>
+    <p class="dg-sub">A public reference for the layout and columns of Day of Giving reports. Every populated row and chart uses independently generated fictional examples. These examples do not report NC State results or describe actual donors, gifts, fundraisers, funds, sponsors or administrators.</p>
+    <div class="dg-filters" aria-label="Filters on the original dashboard">
+      <span class="dg-flabel">Filters (0)</span><span class="dg-fval">No filters selected</span>
+      <span class="dg-flabel">Time_Range_Begin</span><span class="dg-fval">Date/time</span>
+      <span class="dg-flabel">Time_Range_End</span><span class="dg-fval">Date/time</span>
+      <span class="dg-flabel">Date Range</span><span class="dg-fval">Custom Range · Current Week · Last Week · Current Month · All Dates · 365 / 180 / 90 / 60 / 30 / 14 / 7 / 3 / 1 Days</span>
+    </div>
+    <p class="dg-fnote">Filters are shown for layout reference only. They do not change these fictional examples.</p>
+    <nav class="dg-nav" aria-label="Report sections"><a class="dg-tab" href="#sec-gift" data-target="sec-gift">1. Gift Reports</a><a class="dg-tab" href="#sec-geo" data-target="sec-geo">2. Geographic Reports</a><a class="dg-tab" href="#sec-hourly" data-target="sec-hourly">3. Hourly Challenge Reports</a><a class="dg-tab" href="#sec-fund" data-target="sec-fund">4. Fundraiser Reports</a><a class="dg-tab" href="#sec-yoy" data-target="sec-yoy">5. YOY Reports</a><a class="dg-tab" href="#sec-more" data-target="sec-more">6. Additional Reports</a></nav>
+  </header>
+  
+<section class="dg-sec" id="sec-gift"><h2 class="dg-h2">Gift reports</h2><div class="dg-grid">
+<article class="dg-card dg-s12" id="p-topline_fin"><h3 class="dg-h3">Giving Day Top Line Financials Totals ($$$)</h3><div class="dg-tw"><table class="dg-t" data-source="gift" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Total Online Donations (Gross)">Total Online Donations (Gross)</th>
+<th data-field="Total Online Donations (Intended)">Total Online Donations (Intended)</th>
+<th data-field="Total Credit Card Fees">Total Credit Card Fees</th>
+<th data-field="Total Payout Amounts">Total Payout Amounts</th></tr></thead>
+<tbody data-draw="rows" data-panel="topline_fin"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-topline_stats"><h3 class="dg-h3">Giving Day Top Line Stats</h3><div class="dg-tw"><table class="dg-t" data-source="gift" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Online Raised ($)">Online Raised ($)</th>
+<th data-field="Offline Raised ($)">Offline Raised ($)</th>
+<th data-field="Total Raised ($)">Total Raised ($)</th>
+<th data-field="Online Donor Count">Online Donor Count</th>
+<th data-field="Offline Donor Count">Offline Donor Count</th>
+<th data-field="Total Donor Count">Total Donor Count</th>
+<th data-field="Online Gift Count">Online Gift Count</th>
+<th data-field="Offline Gift Count">Offline Gift Count</th>
+<th data-field="Total Gift Count">Total Gift Count</th>
+<th data-field="Avg # of Gifts per donor">Avg # of Gifts per donor</th></tr></thead>
+<tbody data-draw="rows" data-panel="topline_stats"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-fund_numbers"><h3 class="dg-h3">NC State Campaign Fund Numbers</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="gift" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Group ID">Group ID</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Areas">Areas</th>
+<th data-field="Fund">Fund</th>
+<th data-field="External Fund Number">External Fund Number</th></tr></thead>
+<tbody data-draw="rows" data-panel="fund_numbers"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-org_stats"><h3 class="dg-h3">Organization Stats (Parent Profile)</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="gift" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Organization">Organization</th>
+<th data-field="Online Raised ($)">Online Raised ($)</th>
+<th data-field="Offline Raised ($)">Offline Raised ($)</th>
+<th data-field="Total Raised ($)">Total Raised ($)</th>
+<th data-field="Online Donor Count">Online Donor Count</th>
+<th data-field="Offline Donor Count">Offline Donor Count</th>
+<th data-field="Total Donor Count">Total Donor Count</th>
+<th data-field="Online Gift Count">Online Gift Count</th>
+<th data-field="Offline Gift Count">Offline Gift Count</th>
+<th data-field="Total Gift Count">Total Gift Count</th></tr></thead>
+<tbody data-draw="rows" data-panel="org_stats"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-stewardship"><h3 class="dg-h3">Central Stewardship Report</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="gift" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Fund Number">Fund Number</th>
+<th data-field="GiveGab Campaign ID">GiveGab Campaign ID</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Display Name">Display Name</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Preferred Affiliation">Preferred Affiliation</th>
+<th data-field="Preferred Graduation Year">Preferred Graduation Year</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Number of Donations in a Transaction">Number of Donations in a Transaction</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th></tr></thead>
+<tbody data-draw="rows" data-panel="stewardship"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-online_dl"><h3 class="dg-h3">Online Gift Report - Download for Data</h3><div class="dg-msg">Layout reference: this panel represents a downloadable report. No export data is included in this demonstration.</div>
+</article>
+<article class="dg-card dg-s12" id="p-online_2"><h3 class="dg-h3">Online Gift Report #2 (10pm - onwards)</h3><div class="dg-msg">Layout reference: no individual gift records are included in this demonstration.</div>
+</article>
+<article class="dg-card dg-s12" id="p-offline"><h3 class="dg-h3">Offline Gift Report</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="gift" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Offline Donation ID">GiveGab Offline Donation ID</th>
+<th data-field="Advance ID">Advance ID</th>
+<th data-field="Gift Receipt">Gift Receipt</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Fundraiser Name">Fundraiser Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Donor Name">Donor Name</th>
+<th data-field="Display Name">Display Name</th>
+<th data-field="Email">Email</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Match Commitment">Match Commitment</th>
+<th data-field="Admin Notes">Admin Notes</th>
+<th data-field="Other Message">Other Message</th></tr></thead>
+<tbody data-draw="rows" data-panel="offline"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-gifts_1k"><h3 class="dg-h3">Online Gifts: $1,000 - $9,999</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="gift" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Affiliation Type">Affiliation Type</th>
+<th data-field="Graduation Year">Graduation Year</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Number of Donations in a Transaction">Number of Donations in a Transaction</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th></tr></thead>
+<tbody data-draw="rows" data-panel="gifts_1k"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-gifts_10k"><h3 class="dg-h3">Online Gifts: Greater than $10,000</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="gift" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Affiliation Type">Affiliation Type</th>
+<th data-field="Graduation Year">Graduation Year</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Number of Donations in a Transaction">Number of Donations in a Transaction</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th></tr></thead>
+<tbody data-draw="rows" data-panel="gifts_10k"></tbody></table></div>
+</article></div>
+</section>
+<section class="dg-sec" id="sec-geo"><h2 class="dg-h2">Geographic reports</h2><div class="dg-grid">
+<article class="dg-card dg-s3" id="p-by_state"><h3 class="dg-h3">Gift Count by State (needs date range filters set)</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="geo" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="State">State</th>
+<th data-field="Gift Count">Gift Count</th></tr></thead>
+<tbody data-draw="rows" data-panel="by_state"></tbody></table></div>
+</article>
+<article class="dg-card dg-s3" id="p-by_country"><h3 class="dg-h3">Gift Count by Country (needs date range filters set)</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="geo" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Country">Country</th>
+<th data-field="Gift Count">Gift Count</th></tr></thead>
+<tbody data-draw="rows" data-panel="by_country"></tbody></table></div>
+</article>
+<article class="dg-card dg-s6" id="p-oos_group"><h3 class="dg-h3">Out-of-State Gift Count by Group</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="geo" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Group ID">Group ID</th>
+<th data-field="Group Name">Group Name</th>
+<th data-field="Out-of-State Gifts">Out-of-State Gifts</th></tr></thead>
+<tbody data-draw="rows" data-panel="oos_group"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-nc_based"><h3 class="dg-h3">NC State-based Donations</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="geo" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Display Name">Display Name</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Affiliation Type">Affiliation Type</th>
+<th data-field="Graduation Year">Graduation Year</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Number of Donations in a Transaction">Number of Donations in a Transaction</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th></tr></thead>
+<tbody data-draw="rows" data-panel="nc_based"></tbody></table></div>
+</article></div>
+</section>
+<section class="dg-sec" id="sec-hourly"><h2 class="dg-h2">Hourly challenge reports</h2><div class="dg-grid">
+<article class="dg-card dg-s4" id="p-first_gift"><h3 class="dg-h3">12:00:00am: First Gift</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Number of Donations in a Transaction">Number of Donations in a Transaction</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th></tr></thead>
+<tbody data-draw="rows" data-panel="first_gift"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h12am"><h3 class="dg-h3">12AM Most Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h12am"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h2am"><h3 class="dg-h3">2AM Most Gifts (Outside of NC)</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Group ID">Group ID</th>
+<th data-field="Group Name">Group Name</th>
+<th data-field="Out-of-State Gifts">Out-of-State Gifts</th></tr></thead>
+<tbody data-draw="rows" data-panel="h2am"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h5am"><h3 class="dg-h3">5AM Most Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h5am"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h6am_fs"><h3 class="dg-h3">6AM Most Faculty/Staff Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h6am_fs"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h7am"><h3 class="dg-h3">7AM Most Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h7am"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h8am"><h3 class="dg-h3">8am Top 3 Most Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h8am"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h9am"><h3 class="dg-h3">9AM Most Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h9am"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h10am_up"><h3 class="dg-h3">10AM: University Priorities Power Hour</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h10am_up"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h11am_alum"><h3 class="dg-h3">11AM: Most Alumni Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h11am_alum"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h11am_friend"><h3 class="dg-h3">11AM: Most Friend Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h11am_friend"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h12pm_largest"><h3 class="dg-h3">12PM: Largest Online Gift</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="Amount">Amount</th></tr></thead>
+<tbody data-draw="rows" data-panel="h12pm_largest"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h1pm_grad"><h3 class="dg-h3">1PM Most Graduate Alumni Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h1pm_grad"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h2pm_fs"><h3 class="dg-h3">2PM Most Faculty/Staff Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h2pm_fs"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h3pm_student"><h3 class="dg-h3">3PM: Most Student Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h3pm_student"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h3pm_up"><h3 class="dg-h3">3PM: University Priorities Power Hour</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h3pm_up"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h4pm_repeat"><h3 class="dg-h3">4PM: Repeat Donor (Multi-Transaction Report)</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Donor Name">Donor Name</th>
+<th data-field="Donor Email">Donor Email</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Fundraiser Name">Fundraiser Name</th>
+<th data-field="Fund Number">Fund Number</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="Intended Donation Amount">Intended Donation Amount</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Number of Donations in Transaction">Number of Donations in Transaction</th></tr></thead>
+<tbody data-draw="rows" data-panel="h4pm_repeat"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h5pm_alum"><h3 class="dg-h3">5PM: Most Alumni Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h5pm_alum"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h6pm"><h3 class="dg-h3">6PM: Most Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h6pm"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h7pm_parent"><h3 class="dg-h3">7PM Most Parent Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h7pm_parent"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h7pm_pl"><h3 class="dg-h3">DRAFT-7PM Pack Leader Power Hour</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Fundraiser ID">Fundraiser ID</th>
+<th data-field="first name">first name</th>
+<th data-field="last name">last name</th>
+<th data-field="Total Raised">Total Raised</th>
+<th data-field="Total Raised Online">Total Raised Online</th>
+<th data-field="Total Raised Offline">Total Raised Offline</th>
+<th data-field="Total Gifts">Total Gifts</th>
+<th data-field="Total Donor Count">Total Donor Count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h7pm_pl"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h8pm_young"><h3 class="dg-h3">8PM: Most Young Alumni Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Group ID">Group ID</th>
+<th data-field="Group Name">Group Name</th>
+<th data-field="Young Alumni Donations">Young Alumni Donations</th></tr></thead>
+<tbody data-draw="rows" data-panel="h8pm_young"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h9pm"><h3 class="dg-h3">9PM: Top 3 Most Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h9pm"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h10pm"><h3 class="dg-h3">10PM: Most Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h10pm"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-h11pm"><h3 class="dg-h3">11PM: Most Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Area Name">Area Name</th>
+<th data-field="count">count</th></tr></thead>
+<tbody data-draw="rows" data-panel="h11pm"></tbody></table></div>
+</article>
+<article class="dg-card dg-s4" id="p-last_gift"><h3 class="dg-h3">11:59:59 pm: Last Gift</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="hourly" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Preferred Affiliation">Preferred Affiliation</th>
+<th data-field="Preferred Graduation Year">Preferred Graduation Year</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Number of Donations in a Transaction">Number of Donations in a Transaction</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th></tr></thead>
+<tbody data-draw="rows" data-panel="last_gift"></tbody></table></div>
+</article></div>
+</section>
+<section class="dg-sec" id="sec-fund"><h2 class="dg-h2">Fundraiser reports</h2><div class="dg-grid">
+<article class="dg-card dg-s12" id="p-faf_urls"><h3 class="dg-h3">Fundraiser Report: Campaign IDs/URLs</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="fund" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Fundraiser Name">Fundraiser Name</th>
+<th data-field="Fundraiser ID">Fundraiser ID</th>
+<th data-field="Profile URL">Profile URL</th>
+<th data-field="Donation URL">Donation URL</th></tr></thead>
+<tbody data-draw="rows" data-panel="faf_urls"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-faf_totals"><h3 class="dg-h3">FAF Overall/Individual Totals</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="fund" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Fundraiser ID">Fundraiser ID</th>
+<th data-field="first name">first name</th>
+<th data-field="last name">last name</th>
+<th data-field="Total Raised">Total Raised</th>
+<th data-field="Total Raised Online">Total Raised Online</th>
+<th data-field="Total Raised Offline">Total Raised Offline</th>
+<th data-field="Total Gifts">Total Gifts</th>
+<th data-field="Total Donor Count">Total Donor Count</th></tr></thead>
+<tbody data-draw="rows" data-panel="faf_totals"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-faf_stats"><h3 class="dg-h3">Individual Fundraiser Stats</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="fund" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Fundraiser ID">Fundraiser ID</th>
+<th data-field="Type">Type</th>
+<th data-field="Organization Name">Organization Name</th>
+<th data-field="Fundraising Campaign">Fundraising Campaign</th>
+<th data-field="first name">first name</th>
+<th data-field="last name">last name</th>
+<th data-field="Campaign Name">Campaign Name</th>
+<th data-field="email">email</th>
+<th data-field="Story">Story</th>
+<th data-field="Photo/Video?">Photo/Video?</th>
+<th data-field="Created At">Created At</th>
+<th data-field="Goal">Goal</th>
+<th data-field="Total Raised">Total Raised</th>
+<th data-field="Total Raised Online">Total Raised Online</th>
+<th data-field="Total Raised Offline">Total Raised Offline</th>
+<th data-field="Total Donor Count">Total Donor Count</th>
+<th data-field="Online Donor Count">Online Donor Count</th>
+<th data-field="Offline Donor Count">Offline Donor Count</th>
+<th data-field="Total Gifts">Total Gifts</th>
+<th data-field="Total Online Gifts">Total Online Gifts</th>
+<th data-field="Total Offline Gifts">Total Offline Gifts</th>
+<th data-field="Recruiter ID">Recruiter ID</th></tr></thead>
+<tbody data-draw="rows" data-panel="faf_stats"></tbody></table></div>
+</article></div>
+</section>
+<section class="dg-sec" id="sec-yoy"><h2 class="dg-h2">Year-over-year reports</h2><div class="dg-grid">
+<article class="dg-card dg-s12" id="p-yoy_gifts"><h3 class="dg-h3">YoY Day of Online Gift Trends (Hour by Hour)</h3><p class="dg-note">Fictional online gifts by hour, with one illustrative series for each year, 2019–2026</p><div class="dg-chart" data-draw="yoy" data-measure="gifts" data-source="yoy"></div>
+</article>
+<article class="dg-card dg-s12" id="p-yoy_dollars"><h3 class="dg-h3">YoY Day of Online $$$ Trends (Hour by Hour)</h3><p class="dg-note">Fictional online dollars by hour, with one illustrative series for each year, 2019–2026</p><div class="dg-chart" data-draw="yoy" data-measure="dollars" data-source="yoy"></div>
+</article>
+<article class="dg-card dg-s6" id="p-hourly_2019"><h3 class="dg-h3">2019 Hourly Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="yoy" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="year">year</th>
+<th data-field="Start Hour">Start Hour</th>
+<th data-field="Total Dollars">Total Dollars</th>
+<th data-field="Total Gifts">Total Gifts</th>
+<th data-field="Online Dollars">Online Dollars</th>
+<th data-field="Online Gifts">Online Gifts</th></tr></thead>
+<tbody data-draw="rows" data-panel="hourly_2019"></tbody></table></div>
+</article>
+<article class="dg-card dg-s6" id="p-hourly_2020"><h3 class="dg-h3">2020 Hourly Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="yoy" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="year">year</th>
+<th data-field="Start Hour">Start Hour</th>
+<th data-field="Total Dollars">Total Dollars</th>
+<th data-field="Total Gifts">Total Gifts</th>
+<th data-field="Online Dollars">Online Dollars</th>
+<th data-field="Online Gifts">Online Gifts</th></tr></thead>
+<tbody data-draw="rows" data-panel="hourly_2020"></tbody></table></div>
+</article>
+<article class="dg-card dg-s6" id="p-hourly_2021"><h3 class="dg-h3">2021 Hourly Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="yoy" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="year">year</th>
+<th data-field="Start Hour">Start Hour</th>
+<th data-field="Total Dollars">Total Dollars</th>
+<th data-field="Total Gifts">Total Gifts</th>
+<th data-field="Online Dollars">Online Dollars</th>
+<th data-field="Online Gifts">Online Gifts</th></tr></thead>
+<tbody data-draw="rows" data-panel="hourly_2021"></tbody></table></div>
+</article>
+<article class="dg-card dg-s6" id="p-hourly_2022"><h3 class="dg-h3">2022 Hourly Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="yoy" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="year">year</th>
+<th data-field="Start Hour">Start Hour</th>
+<th data-field="Total Dollars">Total Dollars</th>
+<th data-field="Total Gifts">Total Gifts</th>
+<th data-field="Online Dollars">Online Dollars</th>
+<th data-field="Online Gifts">Online Gifts</th></tr></thead>
+<tbody data-draw="rows" data-panel="hourly_2022"></tbody></table></div>
+</article>
+<article class="dg-card dg-s6" id="p-hourly_2023"><h3 class="dg-h3">2023 Hourly Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="yoy" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="year">year</th>
+<th data-field="Start Hour">Start Hour</th>
+<th data-field="Total Dollars">Total Dollars</th>
+<th data-field="Total Gifts">Total Gifts</th>
+<th data-field="Online Dollars">Online Dollars</th>
+<th data-field="Online Gifts">Online Gifts</th></tr></thead>
+<tbody data-draw="rows" data-panel="hourly_2023"></tbody></table></div>
+</article>
+<article class="dg-card dg-s6" id="p-hourly_2024"><h3 class="dg-h3">2024 Hourly Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="yoy" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="year">year</th>
+<th data-field="Start Hour">Start Hour</th>
+<th data-field="Total Dollars">Total Dollars</th>
+<th data-field="Total Gifts">Total Gifts</th>
+<th data-field="Online Dollars">Online Dollars</th>
+<th data-field="Online Gifts">Online Gifts</th></tr></thead>
+<tbody data-draw="rows" data-panel="hourly_2024"></tbody></table></div>
+</article>
+<article class="dg-card dg-s6" id="p-hourly_2025"><h3 class="dg-h3">2025 Hourly Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="yoy" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="year">year</th>
+<th data-field="Start Hour">Start Hour</th>
+<th data-field="Total Dollars">Total Dollars</th>
+<th data-field="Total Gifts">Total Gifts</th>
+<th data-field="Online Dollars">Online Dollars</th>
+<th data-field="Online Gifts">Online Gifts</th></tr></thead>
+<tbody data-draw="rows" data-panel="hourly_2025"></tbody></table></div>
+</article>
+<article class="dg-card dg-s6" id="p-hourly_2026"><h3 class="dg-h3">2026 Hourly Gifts</h3><div class="dg-tw"><table class="dg-t" data-source="yoy" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="year">year</th>
+<th data-field="Start Hour">Start Hour</th>
+<th data-field="Total Dollars">Total Dollars</th>
+<th data-field="Total Gifts">Total Gifts</th>
+<th data-field="Online Dollars">Online Dollars</th>
+<th data-field="Online Gifts">Online Gifts</th></tr></thead>
+<tbody data-draw="rows" data-panel="hourly_2026"></tbody></table></div>
+</article></div>
+</section>
+<section class="dg-sec" id="sec-more"><h2 class="dg-h2">Additional panels below the YOY section</h2><div class="dg-grid">
+<article class="dg-card dg-s12" id="p-vip_hourly"><h3 class="dg-h3">VIP Hourly</h3><p class="dg-note">Fictional hourly dollar examples for the displayed early-giving date columns</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="hour of day">hour of day</th>
+<th data-field="3/11">3/11</th>
+<th data-field="3/12">3/12</th>
+<th data-field="3/13">3/13</th>
+<th data-field="3/14">3/14</th>
+<th data-field="3/15">3/15</th>
+<th data-field="3/16">3/16</th>
+<th data-field="3/17">3/17</th>
+<th data-field="3/18">3/18</th>
+<th data-field="3/19">3/19</th>
+<th data-field="3/20">3/20</th>
+<th data-field="3/21">3/21</th>
+<th data-field="3/22">3/22</th>
+<th data-field="3/23">3/23</th>
+<th data-field="3/24">3/24</th>
+<th data-field="3/25">3/25</th></tr></thead>
+<tbody data-draw="rows" data-panel="vip_hourly"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-challenges"><h3 class="dg-h3">Challenges &amp; Matches</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Match ID">Match ID</th>
+<th data-field="Match/Challenge Name">Match/Challenge Name</th>
+<th data-field="Associated Org">Associated Org</th>
+<th data-field="Type">Type</th>
+<th data-field="Sponsor">Sponsor</th>
+<th data-field="URL">URL</th>
+<th data-field="Match Amount/Challenge Goal">Match Amount/Challenge Goal</th>
+<th data-field="Total Sponsor Gift Amount">Total Sponsor Gift Amount</th>
+<th data-field="Amount Currently Met">Amount Currently Met</th>
+<th data-field="Amount Remaining">Amount Remaining</th>
+<th data-field="Progress %">Progress %</th>
+<th data-field="Amount Released">Amount Released</th>
+<th data-field="Met/Depleted at">Met/Depleted at</th>
+<th data-field="description">description</th>
+<th data-field="Start Time (Converted)">Start Time (Converted)</th>
+<th data-field="End Time (Converted)">End Time (Converted)</th>
+<th data-field="Created Time (Converted)">Created Time (Converted)</th>
+<th data-field="auto match">auto match</th></tr></thead>
+<tbody data-draw="rows" data-panel="challenges"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-prizes"><h3 class="dg-h3">Prize/Challenges</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Prize Title">Prize Title</th>
+<th data-field="Prize Text (optional)">Prize Text (optional)</th>
+<th data-field="Description">Description</th>
+<th data-field="Selection Strategy">Selection Strategy</th>
+<th data-field="Created Time (Converted)">Created Time (Converted)</th>
+<th data-field="Created Time (UTC)">Created Time (UTC)</th>
+<th data-field="Amount Awarded">Amount Awarded</th>
+<th data-field="Winning Organization">Winning Organization</th>
+<th data-field="Individual Prize Description (optional)">Individual Prize Description (optional)</th>
+<th data-field="Admin First Name">Admin First Name</th>
+<th data-field="Admin Last Name">Admin Last Name</th>
+<th data-field="Admin Email">Admin Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th></tr></thead>
+<tbody data-draw="rows" data-panel="prizes"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-campaign_urls"><h3 class="dg-h3">NC State - Campaigns &amp; URLs</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="college/unit">college/unit</th>
+<th data-field="group id">group id</th>
+<th data-field="campaign id">campaign id</th>
+<th data-field="designation">designation</th>
+<th data-field="fund # 1">fund # 1</th>
+<th data-field="visibility">visibility</th>
+<th data-field="view url">view url</th>
+<th data-field="edit url">edit url</th></tr></thead>
+<tbody data-draw="rows" data-panel="campaign_urls"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-parent_online"><h3 class="dg-h3">Online Gifts by Parent Profile (Time-Scopeable)</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Organization Name">Organization Name</th>
+<th data-field="Online Raised (Intended)">Online Raised (Intended)</th>
+<th data-field="Online Raised (Gross)">Online Raised (Gross)</th>
+<th data-field="Online Donors">Online Donors</th>
+<th data-field="Online Gifts">Online Gifts</th></tr></thead>
+<tbody data-draw="rows" data-panel="parent_online"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-vip_gifts"><h3 class="dg-h3">Online Gift Report - VIP (Prior to 3/25)</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Fundraiser Name">Fundraiser Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Tertiary Campaign">Tertiary Campaign</th>
+<th data-field="External ID">External ID</th>
+<th data-field="Multi-give">Multi-give</th>
+<th data-field="Fund Number">Fund Number</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="Status">Status</th>
+<th data-field="Intended Donation Amount">Intended Donation Amount</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Credit Card Fee">Credit Card Fee</th>
+<th data-field="Payout Amount">Payout Amount</th>
+<th data-field="Payout Date (UTC)">Payout Date (UTC)</th>
+<th data-field="Charge ID">Charge ID</th>
+<th data-field="Number of Donations in Transaction">Number of Donations in Transaction</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Display Name">Display Name</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Phone Number">Phone Number</th>
+<th data-field="Preferred Affiliation">Preferred Affiliation</th>
+<th data-field="Preferred Graduation Year">Preferred Graduation Year</th>
+<th data-field="Comment">Comment</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th>
+<th data-field="Other Message">Other Message</th></tr></thead>
+<tbody data-draw="rows" data-panel="vip_gifts"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-blk_0006"><h3 class="dg-h3">Online Gift Report: 12AM-6AM</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Fundraiser Name">Fundraiser Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Tertiary Campaign">Tertiary Campaign</th>
+<th data-field="External ID">External ID</th>
+<th data-field="Multi-give">Multi-give</th>
+<th data-field="Fund Number">Fund Number</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="Status">Status</th>
+<th data-field="Intended Donation Amount">Intended Donation Amount</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Credit Card Fee">Credit Card Fee</th>
+<th data-field="Payout Amount">Payout Amount</th>
+<th data-field="Payout Date (UTC)">Payout Date (UTC)</th>
+<th data-field="Charge ID">Charge ID</th>
+<th data-field="Number of Donations in Transaction">Number of Donations in Transaction</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Display Name">Display Name</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Phone Number">Phone Number</th>
+<th data-field="Preferred Affiliation">Preferred Affiliation</th>
+<th data-field="Preferred Graduation Year">Preferred Graduation Year</th>
+<th data-field="Comment">Comment</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th>
+<th data-field="Other Message">Other Message</th></tr></thead>
+<tbody data-draw="rows" data-panel="blk_0006"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-blk_0612"><h3 class="dg-h3">Online Gift Report: 6:00:01AM-12PM</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Fundraiser Name">Fundraiser Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Tertiary Campaign">Tertiary Campaign</th>
+<th data-field="External ID">External ID</th>
+<th data-field="Multi-give">Multi-give</th>
+<th data-field="Fund Number">Fund Number</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="Status">Status</th>
+<th data-field="Intended Donation Amount">Intended Donation Amount</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Credit Card Fee">Credit Card Fee</th>
+<th data-field="Payout Amount">Payout Amount</th>
+<th data-field="Payout Date (UTC)">Payout Date (UTC)</th>
+<th data-field="Charge ID">Charge ID</th>
+<th data-field="Number of Donations in Transaction">Number of Donations in Transaction</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Display Name">Display Name</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Phone Number">Phone Number</th>
+<th data-field="Preferred Affiliation">Preferred Affiliation</th>
+<th data-field="Preferred Graduation Year">Preferred Graduation Year</th>
+<th data-field="Comment">Comment</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th>
+<th data-field="Other Message">Other Message</th></tr></thead>
+<tbody data-draw="rows" data-panel="blk_0612"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-blk_1214"><h3 class="dg-h3">Online Gift Report: 12:00:01PM-2PM</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Fundraiser Name">Fundraiser Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Tertiary Campaign">Tertiary Campaign</th>
+<th data-field="External ID">External ID</th>
+<th data-field="Multi-give">Multi-give</th>
+<th data-field="Fund Number">Fund Number</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="Status">Status</th>
+<th data-field="Intended Donation Amount">Intended Donation Amount</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Credit Card Fee">Credit Card Fee</th>
+<th data-field="Payout Amount">Payout Amount</th>
+<th data-field="Payout Date (UTC)">Payout Date (UTC)</th>
+<th data-field="Charge ID">Charge ID</th>
+<th data-field="Number of Donations in Transaction">Number of Donations in Transaction</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Display Name">Display Name</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Phone Number">Phone Number</th>
+<th data-field="Preferred Affiliation">Preferred Affiliation</th>
+<th data-field="Preferred Graduation Year">Preferred Graduation Year</th>
+<th data-field="Comment">Comment</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th>
+<th data-field="Other Message">Other Message</th></tr></thead>
+<tbody data-draw="rows" data-panel="blk_1214"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-blk_1416"><h3 class="dg-h3">Online Gift Report: 2:00:01PM-4PM</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Fundraiser Name">Fundraiser Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Tertiary Campaign">Tertiary Campaign</th>
+<th data-field="External ID">External ID</th>
+<th data-field="Multi-give">Multi-give</th>
+<th data-field="Fund Number">Fund Number</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="Status">Status</th>
+<th data-field="Intended Donation Amount">Intended Donation Amount</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Credit Card Fee">Credit Card Fee</th>
+<th data-field="Payout Amount">Payout Amount</th>
+<th data-field="Payout Date (UTC)">Payout Date (UTC)</th>
+<th data-field="Charge ID">Charge ID</th>
+<th data-field="Number of Donations in Transaction">Number of Donations in Transaction</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Display Name">Display Name</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Phone Number">Phone Number</th>
+<th data-field="Preferred Affiliation">Preferred Affiliation</th>
+<th data-field="Preferred Graduation Year">Preferred Graduation Year</th>
+<th data-field="Comment">Comment</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th>
+<th data-field="Other Message">Other Message</th></tr></thead>
+<tbody data-draw="rows" data-panel="blk_1416"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-blk_1618"><h3 class="dg-h3">Online Gift Report: 4:00:01PM-6PM</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Fundraiser Name">Fundraiser Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Tertiary Campaign">Tertiary Campaign</th>
+<th data-field="External ID">External ID</th>
+<th data-field="Multi-give">Multi-give</th>
+<th data-field="Fund Number">Fund Number</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="Status">Status</th>
+<th data-field="Intended Donation Amount">Intended Donation Amount</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Credit Card Fee">Credit Card Fee</th>
+<th data-field="Payout Amount">Payout Amount</th>
+<th data-field="Payout Date (UTC)">Payout Date (UTC)</th>
+<th data-field="Charge ID">Charge ID</th>
+<th data-field="Number of Donations in Transaction">Number of Donations in Transaction</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Display Name">Display Name</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Phone Number">Phone Number</th>
+<th data-field="Preferred Affiliation">Preferred Affiliation</th>
+<th data-field="Preferred Graduation Year">Preferred Graduation Year</th>
+<th data-field="Comment">Comment</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th>
+<th data-field="Other Message">Other Message</th></tr></thead>
+<tbody data-draw="rows" data-panel="blk_1618"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-blk_1820"><h3 class="dg-h3">Online Gift Report: 6:00:01PM-8PM</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Fundraiser Name">Fundraiser Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Tertiary Campaign">Tertiary Campaign</th>
+<th data-field="External ID">External ID</th>
+<th data-field="Multi-give">Multi-give</th>
+<th data-field="Fund Number">Fund Number</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="Status">Status</th>
+<th data-field="Intended Donation Amount">Intended Donation Amount</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Credit Card Fee">Credit Card Fee</th>
+<th data-field="Payout Amount">Payout Amount</th>
+<th data-field="Payout Date (UTC)">Payout Date (UTC)</th>
+<th data-field="Charge ID">Charge ID</th>
+<th data-field="Number of Donations in Transaction">Number of Donations in Transaction</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Display Name">Display Name</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Phone Number">Phone Number</th>
+<th data-field="Preferred Affiliation">Preferred Affiliation</th>
+<th data-field="Preferred Graduation Year">Preferred Graduation Year</th>
+<th data-field="Comment">Comment</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th>
+<th data-field="Other Message">Other Message</th></tr></thead>
+<tbody data-draw="rows" data-panel="blk_1820"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-blk_2022"><h3 class="dg-h3">Online Gift Report: 8:00:01PM-10PM</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Fundraiser Name">Fundraiser Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Tertiary Campaign">Tertiary Campaign</th>
+<th data-field="External ID">External ID</th>
+<th data-field="Multi-give">Multi-give</th>
+<th data-field="Fund Number">Fund Number</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="Status">Status</th>
+<th data-field="Intended Donation Amount">Intended Donation Amount</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Credit Card Fee">Credit Card Fee</th>
+<th data-field="Payout Amount">Payout Amount</th>
+<th data-field="Payout Date (UTC)">Payout Date (UTC)</th>
+<th data-field="Charge ID">Charge ID</th>
+<th data-field="Number of Donations in Transaction">Number of Donations in Transaction</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Display Name">Display Name</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Phone Number">Phone Number</th>
+<th data-field="Preferred Affiliation">Preferred Affiliation</th>
+<th data-field="Preferred Graduation Year">Preferred Graduation Year</th>
+<th data-field="Comment">Comment</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th>
+<th data-field="Other Message">Other Message</th></tr></thead>
+<tbody data-draw="rows" data-panel="blk_2022"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-blk_2224"><h3 class="dg-h3">Online Gift Report: 10:00:01PM-12AM</h3><p class="dg-note">Column layout only · no donor or individual gift records are included</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="GiveGab Donation ID">GiveGab Donation ID</th>
+<th data-field="Affiliate Name">Affiliate Name</th>
+<th data-field="Fundraiser Name">Fundraiser Name</th>
+<th data-field="Designation">Designation</th>
+<th data-field="Campaign ID">Campaign ID</th>
+<th data-field="Tertiary Campaign">Tertiary Campaign</th>
+<th data-field="External ID">External ID</th>
+<th data-field="Multi-give">Multi-give</th>
+<th data-field="Fund Number">Fund Number</th>
+<th data-field="Donation Date">Donation Date</th>
+<th data-field="Donation Time">Donation Time</th>
+<th data-field="Status">Status</th>
+<th data-field="Intended Donation Amount">Intended Donation Amount</th>
+<th data-field="Donation Amount">Donation Amount</th>
+<th data-field="Credit Card Fee">Credit Card Fee</th>
+<th data-field="Payout Amount">Payout Amount</th>
+<th data-field="Payout Date (UTC)">Payout Date (UTC)</th>
+<th data-field="Charge ID">Charge ID</th>
+<th data-field="Number of Donations in Transaction">Number of Donations in Transaction</th>
+<th data-field="First Name">First Name</th>
+<th data-field="Last Name">Last Name</th>
+<th data-field="Display Name">Display Name</th>
+<th data-field="Anonymous?">Anonymous?</th>
+<th data-field="Email">Email</th>
+<th data-field="Addr 1">Addr 1</th>
+<th data-field="Addr 2">Addr 2</th>
+<th data-field="City">City</th>
+<th data-field="State">State</th>
+<th data-field="Zip">Zip</th>
+<th data-field="Country">Country</th>
+<th data-field="Phone Number">Phone Number</th>
+<th data-field="Preferred Affiliation">Preferred Affiliation</th>
+<th data-field="Preferred Graduation Year">Preferred Graduation Year</th>
+<th data-field="Comment">Comment</th>
+<th data-field="Referral Source">Referral Source</th>
+<th data-field="Referral Medium">Referral Medium</th>
+<th data-field="Referral Campaign">Referral Campaign</th>
+<th data-field="Referral Content">Referral Content</th>
+<th data-field="Referral Term">Referral Term</th>
+<th data-field="Other Message">Other Message</th></tr></thead>
+<tbody data-draw="rows" data-panel="blk_2224"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-survey_ids"><h3 class="dg-h3">Giving Day Survey Choice IDs</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="Survey Choice ID">Survey Choice ID</th>
+<th data-field="Survey Choice">Survey Choice</th>
+<th data-field="Survey Question ID">Survey Question ID</th>
+<th data-field="Survey Question">Survey Question</th>
+<th data-field="Question Type">Question Type</th>
+<th data-field="Required">Required</th></tr></thead>
+<tbody data-draw="rows" data-panel="survey_ids"></tbody></table></div>
+</article>
+<article class="dg-card dg-s12" id="p-fund_desc"><h3 class="dg-h3">Funds and Descriptions</h3><p class="dg-note">Illustrative fictional examples · values are not actual results</p><div class="dg-tw"><table class="dg-t" data-source="more" data-row-key="panel,#"><thead><tr>
+<th data-field="#"></th>
+<th data-field="campaign id">campaign id</th>
+<th data-field="support area">support area</th>
+<th data-field="group id">group id</th>
+<th data-field="organization">organization</th>
+<th data-field="fund number">fund number</th>
+<th data-field="created date">created date</th>
+<th data-field="view url">view url</th>
+<th data-field="story">story</th></tr></thead>
+<tbody data-draw="rows" data-panel="fund_desc"></tbody></table></div>
+</article></div>
+</section>
+</div>
+<script>
+const enc = (v) => encodeURIComponent(String(v));
+const isNum = (v) => /^-?\$?[\d,]+(\.\d+)?$/.test(v);
+
+dash.draw('rows', (tb) => {
+  const table = tb.closest('table');
+  if (!table) return;
+  const d = dash.data(table.dataset.source);
+  const cols = [...table.querySelectorAll('th')].map((th) => th.dataset.field);
+  if (d.status !== 'ok') { tb.replaceChildren(); return; }
+  const rows = d.data.filter((r) => r.panel === tb.dataset.panel);
+  tb.replaceChildren(...rows.map((r) => {
+    const tr = document.createElement('tr');
+    tr.dataset.key = enc(r.panel) + ',' + enc(r['#']);
+    cols.forEach((c) => {
+      const td = document.createElement('td');
+      const v = r[c] == null ? '' : String(r[c]);
+      td.textContent = v;
+      if (v.length > 40) td.title = v;
+      if (/^(DEMO-|Demo |Example |Fictional |Not included)/.test(v)) td.className = 'dg-example';
+      else if (c !== '#' && isNum(v)) td.className = 'dg-num';
+      tr.append(td);
+    });
+    return tr;
+  }));
+});
+
+const hourLabel = (h) => (h === 0 ? '12a' : h < 12 ? h + 'a' : h === 12 ? '12p' : (h - 12) + 'p');
+const hourLong = (h) => (h === 0 ? '12 a.m.' : h < 12 ? h + ' a.m.' : h === 12 ? '12 p.m.' : (h - 12) + ' p.m.');
+
+dash.draw('yoy', (el) => {
+  el.replaceChildren();
+  const source = dash.data('yoy');
+  if (source.status !== 'ok') return;
+
+  const gifts = el.dataset.measure === 'gifts';
+  const column = gifts ? 'Online Gifts' : 'Online Dollars';
+  const metric = gifts ? 'online gifts' : 'online dollars';
+  const numeric = (value) => {
+    const result = Number(String(value == null ? '' : value).replace(/[$,]/g, ''));
+    return Number.isFinite(result) ? result : 0;
+  };
+  const years = [...new Set(source.data.map((row) => String(row.year)))].sort();
+  const series = years.map((year) => ({
+    year,
+    points: source.data.filter((row) => String(row.year) === year)
+      .map((row) => ({ hour: numeric(row['Start Hour']), value: numeric(row[column]) }))
+      .filter((point) => Number.isInteger(point.hour) && point.hour >= 0 && point.hour <= 23)
+      .sort((a, b) => a.hour - b.hour),
+  })).filter((item) => item.points.length);
+  if (!series.length) {
+    const message = document.createElement('p');
+    message.className = 'dg-note';
+    message.textContent = 'No illustrative hourly data is available.';
+    el.append(message);
+    return;
+  }
+
+  const colors = dash.colors;
+  const dashPatterns = ['', '6 3', '2 3', '10 3 2 3', '8 4', '1 3', '10 3 3 3', '4 2 1 2'];
+  const integerFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+  const moneyFormat = new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: 'USD', maximumFractionDigits: 0,
+  });
+  const format = (value) => gifts ? integerFormat.format(value) : moneyFormat.format(value);
+  const tickFormat = (value) => {
+    if (gifts) return integerFormat.format(value);
+    if (value >= 1000000) return '$' + Number((value / 1000000).toFixed(1)) + 'm';
+    if (value >= 1000) return '$' + Number((value / 1000).toFixed(1)) + 'k';
+    return moneyFormat.format(value);
+  };
+
+  const legend = document.createElement('div');
+  legend.style.cssText = 'display:flex;flex-wrap:wrap;gap:.75rem;font-size:var(--cds-font-size-caption);margin-bottom:.25rem';
+  series.forEach((item, index) => {
+    const entry = document.createElement('span');
+    entry.style.cssText = 'display:inline-flex;align-items:center;gap:.3rem';
+    const swatch = document.createElement('span');
+    swatch.className = 'dg-sw';
+    swatch.style.background = colors[index % colors.length];
+    swatch.setAttribute('aria-hidden', 'true');
+    const label = document.createElement('span');
+    label.textContent = item.year;
+    entry.append(swatch, label);
+    legend.append(entry);
+  });
+  el.append(legend);
+
+  const width = Math.max(320, el.clientWidth || 800);
+  const height = 280;
+  const margin = { top: 14, right: 18, bottom: 30, left: gifts ? 58 : 64 };
+  const maxValue = Math.max(1, ...series.flatMap((item) => item.points.map((point) => point.value)));
+  const rawStep = maxValue / 4;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const stepMultiplier = [1, 2, 5, 10].find((value) => value * magnitude >= rawStep) || 10;
+  const tickStep = Math.max(gifts ? 1 : 0.01, stepMultiplier * magnitude);
+  const yMax = Math.ceil(maxValue / tickStep) * tickStep;
+  const x = (hour) => margin.left + (hour / 23) * (width - margin.left - margin.right);
+  const y = (value) => height - margin.bottom - (value / yMax) * (height - margin.top - margin.bottom);
+  const svgElement = (tag, attributes, parent) => {
+    const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.entries(attributes || {}).forEach(([key, value]) => element.setAttribute(key, String(value)));
+    if (parent) parent.append(element);
+    return element;
+  };
+  const svg = svgElement('svg', {
+    width: '100%', viewBox: '0 0 ' + width + ' ' + height,
+    role: 'slider', tabindex: 0,
+    'aria-label': 'Hourly ' + metric + ' comparison. Use left and right arrow keys to select an hour.',
+    'aria-valuemin': 0, 'aria-valuemax': 23, 'aria-valuenow': 12,
+    'aria-orientation': 'horizontal',
+  }, el);
+  svg.style.cssText = 'display:block;max-width:100%;touch-action:pan-y';
+  const title = svgElement('title', {}, svg);
+  title.textContent = 'Illustrative ' + metric + ' per hour, ' + series[0].year + '–' + series[series.length - 1].year;
+
+  const drawing = svgElement('g', { 'aria-hidden': 'true' }, svg);
+  for (let value = 0; value <= yMax + tickStep / 10; value += tickStep) {
+    svgElement('line', {
+      x1: margin.left, x2: width - margin.right, y1: y(value), y2: y(value),
+      stroke: 'var(--cds-chart-grid)',
+    }, drawing);
+    const label = svgElement('text', {
+      x: margin.left - 7, y: y(value) + 4, 'text-anchor': 'end',
+      fill: 'var(--color-fg-muted)', 'font-size': 11,
+    }, drawing);
+    label.textContent = tickFormat(value);
+  }
+  svgElement('line', {
+    x1: margin.left, x2: width - margin.right,
+    y1: height - margin.bottom, y2: height - margin.bottom,
+    stroke: 'var(--cds-chart-axis)',
+  }, drawing);
+  const hourStep = width < 520 ? 6 : 3;
+  const hours = [];
+  for (let hour = 0; hour < 24; hour += hourStep) hours.push(hour);
+  if (hours[hours.length - 1] !== 23) hours.push(23);
+  hours.forEach((hour) => {
+    const label = svgElement('text', {
+      x: x(hour), y: height - 8, 'text-anchor': hour === 23 ? 'end' : 'middle',
+      fill: 'var(--color-fg-muted)', 'font-size': 11,
+    }, drawing);
+    label.textContent = hourLabel(hour);
+  });
+  series.forEach((item, index) => {
+    const path = item.points.map((point, position) =>
+      (position ? 'L' : 'M') + x(point.hour).toFixed(2) + ',' + y(point.value).toFixed(2)
+    ).join(' ');
+    svgElement('path', {
+      d: path, fill: 'none', stroke: colors[index % colors.length],
+      'stroke-width': index === series.length - 1 ? 2.6 : 1.8,
+      'stroke-dasharray': dashPatterns[index % dashPatterns.length],
+      'stroke-linejoin': 'round', 'stroke-linecap': 'round',
+    }, drawing);
+  });
+
+  const rule = svgElement('line', {
+    x1: x(12), x2: x(12), y1: margin.top, y2: height - margin.bottom,
+    stroke: 'var(--cds-chart-reference)', 'stroke-dasharray': '3 3', visibility: 'hidden',
+  }, drawing);
+  const tooltip = document.createElement('div');
+  tooltip.className = 'dg-tip';
+  tooltip.hidden = true;
+  tooltip.setAttribute('aria-hidden', 'true');
+  el.append(tooltip);
+  const instruction = document.createElement('p');
+  instruction.className = 'dg-note';
+  instruction.textContent = 'Point to an hour, or focus the chart and use arrow keys. Home and End select the first and last hour. Exact values also appear in the hourly tables below.';
+  el.append(instruction);
+
+  let selectedHour = 12;
+  let pointerInside = false;
+  const hourSummary = (hour) => hourLong(hour) + '. ' + series.map((item) => {
+    const point = item.points.find((entry) => entry.hour === hour);
+    return item.year + ': ' + (point ? format(point.value) : 'no data');
+  }).join('; ');
+  svg.setAttribute('aria-valuetext', hourSummary(selectedHour));
+
+  const showHour = (hour) => {
+    selectedHour = Math.max(0, Math.min(23, Math.round(hour)));
+    svg.setAttribute('aria-valuenow', String(selectedHour));
+    svg.setAttribute('aria-valuetext', hourSummary(selectedHour));
+    rule.setAttribute('x1', String(x(selectedHour)));
+    rule.setAttribute('x2', String(x(selectedHour)));
+    rule.setAttribute('visibility', 'visible');
+    const heading = document.createElement('div');
+    heading.className = 'dg-tip-h';
+    heading.textContent = hourLong(selectedHour) + ' hour';
+    const entries = series.map((item, index) => {
+      const point = item.points.find((entry) => entry.hour === selectedHour);
+      const row = document.createElement('div');
+      row.className = 'dg-tip-r';
+      const swatch = document.createElement('span');
+      swatch.className = 'dg-sw';
+      swatch.style.background = colors[index % colors.length];
+      const label = document.createElement('span');
+      label.textContent = item.year + ': ' + (point ? format(point.value) : '—');
+      row.append(swatch, label);
+      return row;
+    });
+    tooltip.replaceChildren(heading, ...entries.reverse());
+    tooltip.hidden = false;
+    const chartBounds = svg.getBoundingClientRect();
+    const containerBounds = el.getBoundingClientRect();
+    const pointLeft = chartBounds.left - containerBounds.left + (x(selectedHour) / width) * chartBounds.width;
+    const desiredLeft = selectedHour > 11 ? pointLeft - tooltip.offsetWidth - 12 : pointLeft + 12;
+    tooltip.style.left = Math.max(0, Math.min(desiredLeft, containerBounds.width - tooltip.offsetWidth)) + 'px';
+    tooltip.style.top = Math.max(0, chartBounds.top - containerBounds.top + 8) + 'px';
+  };
+  const hideHour = () => {
+    tooltip.hidden = true;
+    rule.setAttribute('visibility', 'hidden');
+  };
+  svg.addEventListener('pointermove', (event) => {
+    pointerInside = true;
+    const bounds = svg.getBoundingClientRect();
+    const pointX = (event.clientX - bounds.left) * width / (bounds.width || width);
+    showHour((pointX - margin.left) * 23 / (width - margin.left - margin.right));
+  });
+  svg.addEventListener('pointerleave', () => {
+    pointerInside = false;
+    if (document.activeElement !== svg) hideHour();
+  });
+  svg.addEventListener('focus', () => showHour(selectedHour));
+  svg.addEventListener('blur', () => { if (!pointerInside) hideHour(); });
+  svg.addEventListener('keydown', (event) => {
+    let nextHour;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') nextHour = selectedHour - 1;
+    else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') nextHour = selectedHour + 1;
+    else if (event.key === 'Home') nextHour = 0;
+    else if (event.key === 'End') nextHour = 23;
+    else if (event.key === 'Escape') { hideHour(); return; }
+    else return;
+    event.preventDefault();
+    showHour(nextHour);
+  });
+});
+
+
+document.querySelectorAll('.dg-tab').forEach((a) => {
+  a.addEventListener('click', (ev) => {
+    const t = document.getElementById(a.dataset.target);
+    if (!t) return;
+    ev.preventDefault();
+    t.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    dash.setLink(t.id);
+  });
+});
+const named = document.getElementById(location.hash.slice(1));
+if (named) named.scrollIntoView();
+
+</script>
+
+</div>
+<script>
+dash._run();
+let __rt; window.addEventListener('resize',()=>{clearTimeout(__rt);__rt=setTimeout(()=>dash._run(),200)});
+</script>
+</body>
+</html>
